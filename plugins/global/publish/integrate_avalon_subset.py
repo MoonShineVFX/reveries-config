@@ -395,7 +395,8 @@ class IntegrateAvalonSubset(pyblish.api.InstancePlugin):
             "hasUnversionedSurfaces",
             "deadlineJobId",
             # "model_subset_data",  # For rig publish
-            "shape_merge"  # For model/lookdev publish
+            "shape_merge",  # For model/lookdev publish
+            "review"  # For rig review publish
         ]
         for key in optionals:
             if key in instance.data:

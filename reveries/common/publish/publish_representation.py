@@ -24,15 +24,24 @@ def publish(version_id, name, publish_files, delete_source=False, **kwargs):
 
     _data = kwargs.get('data', {})
 
-    representations_context = {
-        'data': _data,
+    # Check representation exists
+    _filter = {
         'type': 'representation',
         'name': name,
         'parent': version_id,
-        'schema': 'avalon-core:representation-2.0'
     }
+    reps_data = io.find_one(_filter)
+    if reps_data:
+        reps_id = reps_data['_id']
+    else:
+        representations_context = {
+            'data': _data,
+            'schema': 'avalon-core:representation-2.0'
+        }
+        representations_context.update(_filter)
+        reps_id = io.insert_one(representations_context).inserted_id
 
-    reps_id = io.insert_one(representations_context).inserted_id
+    # Copy files
     if reps_id:
         pub_dir = _create_folder(version_id, name)
         for _files in publish_files:
@@ -40,13 +49,12 @@ def publish(version_id, name, publish_files, delete_source=False, **kwargs):
                 dst = os.path.join(pub_dir, os.path.basename(_files))
                 _copy_file(_files, dst)
             else:
-                return False
+                continue
 
         if delete_source:
             for _files in publish_files:
                 if os.path.exists(os.path.dirname(_files)):
                     shutil.rmtree(os.path.dirname(_files))
-
         return reps_id
 
     return False

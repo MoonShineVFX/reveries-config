@@ -40,6 +40,8 @@ class RigCreator(avalon.maya.Creator):
         if project.get('usd_pipeline', False):
             self.data["publishUSD"] = True
 
+        self.data["subsetGroup"] = "Rig"
+
         instance = super(RigCreator, self).process()
         self.log.info("Creating Rig instance set up ...")
 

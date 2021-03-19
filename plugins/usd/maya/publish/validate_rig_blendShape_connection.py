@@ -56,7 +56,7 @@ class ValidateRigBlendShapeConnection(pyblish.api.InstancePlugin):
                     "{}.envelope".format(_blendshape), isDestination=True):
                 invalid.append(_blendshape)
 
-        cls.log.info("invalid blendShape: {}".format(invalid))
+        # cls.log.info("invalid blendShape: {}".format(invalid))
         return invalid
 
     @classmethod

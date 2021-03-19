@@ -1,12 +1,13 @@
 from avalon import io
 
 
-def publish(asset_id, subset_name, families):
+def publish(asset_id, subset_name, families, **kwargs):
     """
     Publish subset.
     :param asset_id: (object)
     :param subset_name: (str)
     :param families: (list)
+    :param kwargs: (dict) subsetGroup
     :return:
     """
 
@@ -16,7 +17,7 @@ def publish(asset_id, subset_name, families):
         'type': 'subset',
         'data': {
             'families': families,
-            'subsetGroup': ''
+            'subsetGroup': kwargs.get('subsetGroup', '')
         },
         'schema': 'avalon-core:subset-3.0'}
 

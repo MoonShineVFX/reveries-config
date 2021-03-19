@@ -21,3 +21,10 @@ def project_root_path(file_path):
     file_path = file_path.replace(project_root, "$PROJECT_ROOT")
 
     return file_path
+
+
+def check_dir_exists(dir_path):
+    if not os.path.isdir(dir_path):
+        os.makedirs(dir_path)
+
+    return dir_path

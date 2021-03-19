@@ -66,6 +66,9 @@ def install():  # pragma: no cover
         pyblish.register_plugin_path(
             os.path.join(PLUGINS_DIR, "usd", "maya", "publish")
         )
+        pyblish.register_plugin_path(
+            os.path.join(PLUGINS_DIR, "usd", "global", "publish")
+        )
         avalon.register_plugin_path(
             avalon.Creator,
             os.path.join(PLUGINS_DIR, "usd", "maya", "create")

@@ -43,6 +43,9 @@ class ExtractSkeletonCacheExport(pyblish.api.InstancePlugin):
             skelcache_export.SKELCACHE_NAME,         # 'skelecache_data.usd'
             skelcache_export.SKELCACHEPRIM_NAME      # 'skelecache_prim.usda'
         ]
+        if self._has_override_mesh(instance):
+            instance.data["repr.USD._files"].append(skelcache_export.OVERRIDE_MESHES_NAME)
+
         instance.data["repr.USD.entryFileName"] = skelcache_export.SKELCACHEPRIM_NAME
         instance.data["_preflighted"] = True
 
@@ -56,6 +59,21 @@ class ExtractSkeletonCacheExport(pyblish.api.InstancePlugin):
             ],
             "order": 10
         }
+
+    def _has_override_mesh(self, instance):
+        import maya.cmds as cmds
+
+        root_node = instance.data["root_node"]
+        children = cmds.listRelatives(
+            root_node,
+            allDescendents=True, type="transform", fullPath=True
+        )
+
+        for child_name in children:
+            if cmds.attributeQuery('override_mesh', node=child_name, ex=True):
+                if cmds.getAttr("{}.override_mesh".format(child_name)):
+                    return True
+        return False
 
     def _export_usd(self, instance_data, context_data):
         from reveries.maya.usd import skelcache_export
