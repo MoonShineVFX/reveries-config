@@ -293,6 +293,10 @@ class IntegrateAvalonSubset(pyblish.api.InstancePlugin):
             if instance.data.get("model_subset_id", None):
                 subset["data"]["model_subset_id"] = \
                     instance.data["model_subset_id"]
+            # For lookdev TensionMap
+            if instance.data.get("requireTensionMap", None):
+                subset["data"]["requireTensionMap"] = \
+                    instance.data["requireTensionMap"]
 
         return subset
 
