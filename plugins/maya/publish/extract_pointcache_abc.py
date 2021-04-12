@@ -38,16 +38,103 @@ class ExtractPointCacheABC(pyblish.api.InstancePlugin):
         instance.data["endFrame"] = end
 
         euler_filter = instance.data.get("eulerFilter", False)
+        tension = instance.data.get("requireTensionMap")
         root = instance.data["outCache"]
 
-        instance.data["repr.Alembic._delayRun"] = {
-            "func": self.export_alembic,
-            "args": [
-                root, outpath, start, end, euler_filter
-            ],
-        }
+        if tension:
+            instance.data["repr.Alembic._delayRun"] = {
+                "func": self.export_alembic_with_tension,
+                "args": [
+                    tension,
+                    [root, outpath, start, end],
+                    {"eulerFilter": euler_filter, "writeColorSets": True}
+                ],
+            }
+        else:
+            instance.data["repr.Alembic._delayRun"] = {
+                "func": self.export_alembic,
+                "args": [root, tension, outpath, start, end],
+                "kwargs": {"eulerFilter": euler_filter}
+            }
 
-    def export_alembic(self, root, outpath, start, end, euler_filter):
+    def export_alembic_with_tension(self, tension, args, kwargs):
+        from maya import cmds
+        from itertools import izip
+        from contextlib import contextmanager
+
+        cmds.loadPlugin("TensionMap", quiet=True)
+
+        @contextmanager
+        def tension_context(transforms):
+            tensions = []
+            originals = []
+            deformeds = []
+            deformers = []
+
+            for node in transforms:
+                # find deformed and orig shapes
+                meshes = cmds.ls(
+                    cmds.listHistory(node, future=False, breadthFirst=True),
+                    type="mesh"
+                )
+                if not len(meshes) > 1:
+                    continue
+
+                deformed = meshes[0]
+                original = meshes[-1]
+
+                # find deformation source
+                inputs = cmds.listConnections(deformed + ".inMesh",
+                                              source=True,
+                                              destination=False,
+                                              plugs=True)
+                if not inputs:
+                    raise Exception("No mesh input, this should not happen.")
+
+                deformer_in = inputs[0]
+
+                # create colorSet "tensionCS" on original shape
+                cmds.polyColorSet(original,
+                                  create=True,
+                                  clamped=False,
+                                  representation="RGBA",
+                                  colorSet="tensionCS")
+
+                # create and connect "tensionMap"
+                tens_node = cmds.createNode("tensionMap")
+                cmds.connectAttr(original + ".worldMesh", tens_node + ".orig")
+                cmds.connectAttr(deformer_in, tens_node + ".deform")
+                cmds.connectAttr(tens_node + ".out", deformed + ".inMesh",
+                                 force=True)
+
+                # caching must set to True or it won't evaluate properly
+                cmds.setAttr(original + ".caching", True)
+
+                # save
+                tensions.append(tens_node)
+                originals.append(original)
+                deformeds.append(deformed)
+                deformers.append(deformer_in)
+
+            try:
+                yield
+
+            finally:
+                # teardown
+                group = izip(tensions, originals, deformeds, deformers)
+
+                for tens_node, original, deformed, deformer_in in group:
+                    cmds.connectAttr(deformer_in, deformed + ".inMesh",
+                                     force=True)
+                    cmds.delete(tens_node)
+                    cmds.polyColorSet(original,
+                                      delete=True,
+                                      colorSet="tensionCS")
+
+        with tension_context(tension):
+            self.export_alembic(*args, **kwargs)
+
+    def export_alembic(self, root, outpath, start, end, **kwargs):
         from reveries.maya import io, lib, capsule
         from maya import cmds
 
@@ -84,7 +171,6 @@ class ExtractPointCacheABC(pyblish.api.InstancePlugin):
                     worldSpace=True,
                     uvWrite=True,
                     writeUVSets=True,
-                    eulerFilter=euler_filter,
                     attr=[
                         lib.AVALON_ID_ATTR_LONG,
                     ],
@@ -92,6 +178,7 @@ class ExtractPointCacheABC(pyblish.api.InstancePlugin):
                         "ai",  # Write out Arnold attributes
                         "avnlook_",  # Write out lookDev controls
                     ],
+                    **kwargs
                 )
 
             auto_retry = 1
