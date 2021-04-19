@@ -818,13 +818,9 @@ def get_render_filename_prefix(layer=None):
                                         "fileNamePrefix",
                                         layer)
     else:
-        prefix = lib.query_by_renderlayer("defaultRenderGlobals",
-                                          "imageFilePrefix",
-                                          layer)
-        if prefix and renderer == "arnold" and "<RenderPass>" not in prefix:
-            prefix = "/".join(["<RenderPass>", prefix])
-
-        return prefix
+        return lib.query_by_renderlayer("defaultRenderGlobals",
+                                        "imageFilePrefix",
+                                        layer)
 
 
 def get_render_resolution(layer=None):
