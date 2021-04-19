@@ -281,10 +281,16 @@ class CollectDeformedOutputs(pyblish.api.InstancePlugin):
         asset = io.find_one({"type": "asset",
                              "name": instance.data["asset"],
                              "parent": project["_id"]})
+        if not asset:
+            return None
+
         subset = io.find_one(
             {"type": "subset", "parent": asset["_id"], "name": "lookDefault"},
             projection={"data.requireTensionMap": True}
         )
+        if not subset:
+            return None
+
         return subset["data"].get("requireTensionMap")
 
     def find_tension_required(self, instance, tensioned_data):

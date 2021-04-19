@@ -53,7 +53,7 @@ class ExtractPointCacheABC(pyblish.api.InstancePlugin):
         else:
             instance.data["repr.Alembic._delayRun"] = {
                 "func": self.export_alembic,
-                "args": [root, tension, outpath, start, end],
+                "args": [root, outpath, start, end],
                 "kwargs": {"eulerFilter": euler_filter}
             }
 
