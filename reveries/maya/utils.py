@@ -818,13 +818,9 @@ def get_render_filename_prefix(layer=None):
                                         "fileNamePrefix",
                                         layer)
     else:
-        prefix = lib.query_by_renderlayer("defaultRenderGlobals",
-                                          "imageFilePrefix",
-                                          layer)
-        if prefix and renderer == "arnold" and "<RenderPass>" not in prefix:
-            prefix = "/".join(["<RenderPass>", prefix])
-
-        return prefix
+        return lib.query_by_renderlayer("defaultRenderGlobals",
+                                        "imageFilePrefix",
+                                        layer)
 
 
 def get_render_resolution(layer=None):
@@ -1370,3 +1366,44 @@ class HierarchyGetter(object):
                     self.shapes.append(child)
 
                 self._get_shapes(child)
+
+
+def get_rig_subset_id(root_node):
+    import pymel.core as pm
+
+    from avalon import io, api
+    from reveries.maya import lib, pipeline
+    from reveries.common.path_resolver import PathResolver
+
+    # root_node = 'Caterpillar_rig_01_:ROOT'/'review_test:ROOT'
+    _container = None
+    _namespace = lib.get_ns(root_node)[1:]
+
+    if _namespace:
+        try:
+            _container = pipeline.get_container_from_namespace(_namespace)
+        except RuntimeError as e:
+            print('Get rig container failed.')
+        if _container:
+            return io.ObjectId(cmds.getAttr("{}.subsetId".format(_container)))
+
+        # reference not from loader
+        refs = pm.FileReference(root_node)
+        rig_path = str(refs.unresolvedPath())
+        path_resolver = PathResolver(file_path=rig_path)
+        return path_resolver.get_subset_id()
+
+    # root_node = 'ROOT'
+    sets = cmds.listSets(object=root_node)
+    if len(sets) > 1:
+        raise RuntimeError(
+            'Get rig subset id failed: multiple set has \'ROOT\'')
+
+    rig_subset_name = sets[0]
+    asset = api.Session['AVALON_ASSET']
+    asset_data = io.find_one({'name': asset, 'type': 'asset'})
+
+    _filter = {'name': rig_subset_name, 'parent': asset_data['_id']}
+    rig_data = io.find_one(_filter)
+
+    return rig_data.get('_id', None)

@@ -20,10 +20,11 @@ def publish(subset_id, **kwargs):
     # Get publish value
     source = kwargs.get('source', '')
     work_dir = kwargs.get('work_dir', '')
-    task = kwargs.get('task', '')
+    task = kwargs.get('task', api.Session.get("AVALON_TASK"))
     dependencies = kwargs.get('dependencies', {})
     dependents = kwargs.get('dependents', {})
     comment = kwargs.get('comment', 'Publish')
+    review_data = kwargs.get('review', {})
 
     # Generate version context
     version_context = {
@@ -43,5 +44,9 @@ def publish(subset_id, **kwargs):
         },
         'schema': 'avalon-core:version-3.0'
     }
+
+    if review_data:
+        version_context['data'].update(review_data)
+
     version_id = io.insert_one(version_context).inserted_id
     return version_id

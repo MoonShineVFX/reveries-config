@@ -1,13 +1,12 @@
 
 import os
+import shutil
 import tempfile
 import hashlib
 import codecs
 import weakref
 import getpass
 import pymongo
-
-from distutils import dir_util, errors as distutils_err
 
 from avalon import io, Session
 
@@ -587,11 +586,25 @@ class AssetGraber(object):
         dst = os.path.normpath(dst)
         print("Copying: %s" % src)
         print("     To: %s" % dst)
-        try:
-            dir_util.copy_tree(src, dst)
-        except distutils_err.DistutilsFileError as e:
-            message_box_error("Error", e)
-            raise e
+
+        for root, dirs, fnames in os.walk(src):
+            for f in fnames:
+                retry = 3
+                s = os.path.join(root, f)
+                d = os.path.join(dst, os.path.relpath(root, src), f)
+
+                while retry:
+                    try:
+                        shutil.copy2(s, d)
+                    except Exception as e:
+                        retry -= 1
+                        if retry:
+                            print("File copy failed, retrying..")
+                        else:
+                            # message_box_error("Error", e)
+                            print(e)
+                    else:
+                        break
 
 
 def get_versions_from_sourcefile(source, project):

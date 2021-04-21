@@ -38,6 +38,36 @@ class CollectLook(pyblish.api.InstancePlugin):
                            noIntermediate=True,
                            type="surfaceShape")
 
+        # Require TensionMap plugin
+        tensioned_shadings = []
+        data_nodes = {
+            "aiUserDataVector": (".vectorAttrName", ".outValue"),
+            "aiUserDataColor": (".colorAttrName", ".outColor"),
+        }
+        for node_type, (attr_in, attr_out) in data_nodes.items():
+            tension_plugs = filter(
+                lambda n: cmds.getAttr(n + attr_in) == "tensionCS",
+                cmds.ls(type=node_type)
+            )
+            if tension_plugs:
+                tensioned_shadings += cmds.ls(
+                    cmds.listHistory(
+                        [p + attr_out for p in tension_plugs],
+                        future=True,
+                        pruneDagObjects=True,
+                        breadthFirst=True
+                    ),
+                    type="shadingEngine"
+                )
+        if tensioned_shadings:
+            tensioned_meshes = cmds.ls(
+                cmds.sets(tensioned_shadings, query=True, nodesOnly=True),
+                visible=True,
+                intermediateObjects=True,
+            )
+            instance.data["requireTensionMap"] = cmds.listRelatives(
+                tensioned_meshes, parent=True, path=True) or []
+
         # Require Avalon UUID
         instance.data["requireAvalonUUID"] = cmds.listRelatives(surfaces,
                                                                 parent=True,

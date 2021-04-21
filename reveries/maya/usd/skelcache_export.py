@@ -5,18 +5,22 @@ from avalon import io
 
 from pxr import Usd, UsdGeom, Sdf
 
-SKELCACHE_SOURCE_NAME = r'skelcache_source.usda'
-SKELCACHE_NAME = r'skelecache_data.usda'
+SKELCACHE_SOURCE_NAME = r'skelcache_source.usd'
+SKELCACHE_NAME = r'skelecache_data.usd'
 SKELCACHEPRIM_NAME = r'skelecache_prim.usda'
+OVERRIDE_MESHES_NAME = r'skelecache_override_meshes.usd'
 
 
 class SkeleCacheSourceExporter(object):
-    def __init__(self, out_dir, root_node, frame_range=[], shape_merge=False):
+    def __init__(self, out_dir, root_node, frame_range=[], shape_merge=True,
+                 root_usd_path=None):
         self.frame_range = frame_range
         self.out_dir = out_dir
         self.shape_merge = shape_merge
         self.root_node = root_node
+        self.root_usd_path = root_usd_path
         self.geometry_path = ""
+        self.override_mesh = []
 
         self.source_path = os.path.join(self.out_dir, SKELCACHE_SOURCE_NAME)
 
@@ -57,6 +61,13 @@ class SkeleCacheSourceExporter(object):
             if child_name.endswith("DeformationSystem"):
                 skel.append(child_name)
 
+            if cmds.attributeQuery('override_mesh', node=child_name, ex=True):
+                if cmds.getAttr("{}.override_mesh".format(child_name)):
+                    # usd_path = "/".join(
+                    #     [s.split(":")[-1] for s in child_name.split("|")]).\
+                    #     replace(self.root_usd_path, "/ROOT")
+                    self.override_mesh.append(child_name)
+
         # skel = ["GamerA_rig_01_:DeformationSystem"]
         print("DeformationSystem: ", skel)
         cmds.select(self.geometry_path, r=True)
@@ -69,15 +80,17 @@ class SkeleCacheSourceExporter(object):
             stripNamespaces=1,
             exportBlendShapes=True,
             exportSkels="explicit",
+            exportSkin="explicit",
             filterTypes=[
                 # 'nurbsCurve',
                 'parentConstraint', 'scaleConstraint', 'pointConstraint',
                 'orientConstraint', 'aimConstraint'
             ],
             exportVisibility=1, eulerFilter=1,
-            mergeTransformAndShape=True,  # self.shape_merge,
+            mergeTransformAndShape=self.shape_merge,
             exportDisplayColor=0, ign=1
         )
+        cmds.select(cl=True)
 
 
 class SkelDataExtractor(object):
@@ -91,6 +104,7 @@ class SkelDataExtractor(object):
         self.save_path = os.path.join(
             os.path.dirname(source_path), SKELCACHE_NAME
         )
+        # self.override_mesh = override_mesh
 
         self.del_attrs = [
             'extent', 'material:binding',
@@ -156,11 +170,11 @@ class SkelDataExtractor(object):
             Sdf.CopySpec(temp_layer, '/temp', layer, destination_path)
             temp_layer.Clear()
 
-        try:
-            del_prim = "/{}".format(self.root_usd_path.split("/")[1])
-            stage.RemovePrim(del_prim)
-        except Exception as e:
-            print(e)
+            try:
+                del_prim = "/{}".format(self.root_usd_path.split("/")[1])
+                stage.RemovePrim(del_prim)
+            except Exception as e:
+                print(e)
 
         # Remove unnecessary primitive and attribute
         delete_prims = []
@@ -177,7 +191,16 @@ class SkelDataExtractor(object):
                 over_vis.Set("invisible")
 
             for attr in self.del_attrs:
+                # if str(prim.GetPath()) in self.override_mesh and attr in ["points"]:
+                #     print("....skip remove point: ", str(prim.GetPath()))
+                #     continue
                 prim.RemoveProperty(attr)
+            #
+            # if str(prim.GetPath()) in self.override_mesh:
+            #     print("....override mesh: ", str(prim.GetPath()))
+            #     # uniform token[] skel:joints = []
+            #     attr = prim.CreateAttribute("skel:joints", Sdf.ValueTypeNames.TokenArray)
+            #     attr.Set([])
 
         if delete_prims:
             for _prim in delete_prims:
@@ -352,8 +375,125 @@ class SkelDataExtractor(object):
         temp_layer.Clear()
 
 
+class OverrideMeshExporter(object):
+    def __init__(self, source_path, frame_range, override_meshes=[],
+                 root_usd_path='', shape_merge=True):
+        self.shape_merge = shape_merge
+        self.frame_range = frame_range
+        self.root_usd_path = root_usd_path
+        self.override_meshes = override_meshes
+
+        self.tmp_path = os.path.join(
+            source_path, r'tmp_{}'.format(OVERRIDE_MESHES_NAME))
+        self.save_path = os.path.join(source_path, OVERRIDE_MESHES_NAME)
+
+        self.del_attrs = [
+            'extent', 'material:binding',
+            'faceVertexCounts', 'faceVertexIndices', 'doubleSided',
+            'normals',
+            'xformOpOrder', 'xformOp:translate:pivot'
+        ]
+
+        if override_meshes:
+            self._do_export()
+
+    def _export_source(self):
+        import maya.cmds as cmds
+
+        # Export source
+        cmds.select(self.override_meshes, add=True)
+        cmds.mayaUSDExport(
+            selection=True,
+            frameRange=self.frame_range,
+            file=self.tmp_path,
+            stripNamespaces=1,
+            filterTypes=[
+                'parentConstraint', 'scaleConstraint', 'pointConstraint',
+                'orientConstraint', 'aimConstraint'
+            ],
+            exportVisibility=1, eulerFilter=1,
+            mergeTransformAndShape=self.shape_merge,
+            exportDisplayColor=0, ign=1
+        )
+        cmds.select(cl=True)
+
+    def _do_export(self):
+        from reveries.common import get_fps
+        from reveries.common.usd.utils import get_UpAxis
+
+        # === Export Source ===
+        self._export_source()
+
+        # === Extractor Points Only ===
+        stage = Usd.Stage.Open(self.tmp_path)
+        layer = stage.GetRootLayer()
+
+        override_stage = Usd.Stage.CreateInMemory()
+
+        # Remove parent primitive
+        if stage.GetDefaultPrim().GetName() != "ROOT":
+            destination_path = '/ROOT'
+
+            temp_layer = Sdf.Layer.CreateAnonymous()
+            Sdf.CopySpec(layer, self.root_usd_path, temp_layer, '/temp')
+            stage.RemovePrim(self.root_usd_path)
+            UsdGeom.Xform.Define(stage, destination_path)
+            Sdf.CopySpec(temp_layer, '/temp', layer, destination_path)
+            temp_layer.Clear()
+
+        try:
+            del_prim = "/{}".format(self.root_usd_path.split("/")[1])
+            stage.RemovePrim(del_prim)
+        except Exception as e:
+            print(e)
+
+        # Extractor point attribute
+        for prim in stage.TraverseAll():
+            if prim.GetTypeName() == "Mesh":
+                prim_path = str(prim.GetPath())
+                over_mesh_prim = override_stage.OverridePrim(prim_path)
+                # Add attribute to none
+                joint_attr = over_mesh_prim.CreateAttribute(
+                    "skel:joints", Sdf.ValueTypeNames.TokenArray)
+                joint_attr.Set([])
+                joint_attr.SetCustom(False)
+
+                skel_attr = over_mesh_prim.CreateRelationship("skel:skeleton")
+                skel_attr.AddTarget('/None')
+                skel_attr.SetCustom(False)
+
+                # Get point attribute
+                mesh = UsdGeom.Mesh(prim)
+                points = mesh.GetPointsAttr()
+                over_mesh = UsdGeom.Mesh(over_mesh_prim)
+                over_points = over_mesh.CreatePointsAttr()
+
+                for time_sample in points.GetTimeSamples():
+                    over_points.Set(
+                        points.Get(time_sample),
+                        time=Usd.TimeCode(time_sample)
+                    )
+            # for attr in self.del_attrs:
+            #     prim.RemoveProperty(attr)
+
+        # Stage setting
+        root_prim = override_stage.GetPrimAtPath('/ROOT')
+        override_stage.SetDefaultPrim(root_prim)
+
+        override_stage.SetFramesPerSecond(get_fps())
+        override_stage.SetTimeCodesPerSecond(get_fps())
+        UsdGeom.SetStageUpAxis(override_stage, get_UpAxis(host="Maya"))
+
+        override_stage.SetStartTimeCode(stage.GetStartTimeCode())
+        override_stage.SetEndTimeCode(stage.GetEndTimeCode())
+
+        override_stage.Export(self.save_path)
+
+
 class SkelCachePrimExporter(object):
-    def __init__(self, out_dir, rig_subset_id):
+    def __init__(self, out_dir, frame_range, rig_subset_id=None):
+        self.frame_range = frame_range
+        self.out_dir = out_dir
         self.rig_subset_id = rig_subset_id  # "5faa5b7a92db631874696778"
         self.output_path = os.path.join(out_dir, SKELCACHEPRIM_NAME)
         self._export()
@@ -382,6 +522,8 @@ class SkelCachePrimExporter(object):
         stage = Usd.Stage.CreateInMemory()
 
         root_layer = stage.GetRootLayer()
+        if os.path.exists(os.path.join(self.out_dir, OVERRIDE_MESHES_NAME)):
+            root_layer.subLayerPaths.append(OVERRIDE_MESHES_NAME)
         root_layer.subLayerPaths.append(SKELCACHE_NAME)
         root_layer.subLayerPaths.append(rig_prim_file)
 
@@ -392,36 +534,46 @@ class SkelCachePrimExporter(object):
         stage.SetTimeCodesPerSecond(get_fps())
         UsdGeom.SetStageUpAxis(stage, get_UpAxis(host="Maya"))
 
+        stage.SetStartTimeCode(self.frame_range[0])
+        stage.SetEndTimeCode(self.frame_range[1])
+
         # print(stage.GetRootLayer().ExportToString())
         stage.GetRootLayer().Export(self.output_path)
 
 
-def export(out_dir, root_node, frame_range=[], rig_subset_id="", shape_merge=False):
+def export(out_dir, root_node, frame_range=[], rig_subset_id="", shape_merge=True):
     import maya.cmds as cmds
 
     if not os.path.isdir(out_dir):
         os.makedirs(out_dir)
 
     root_node = cmds.ls(root_node, long=True)[0]
+    root_usd_path = "/".join([s.split(":")[-1] for s in root_node.split("|")])
+    print("root_usd_path: ", root_usd_path)  # r'/rigDefault/ROOT'
 
     # Export source
     exporter = SkeleCacheSourceExporter(
         out_dir, root_node, frame_range=frame_range, shape_merge=shape_merge,
+        root_usd_path=root_usd_path
     )
     print("Source done.")
 
     # Export skeleton cache usd
-    source_path = exporter.source_path
-    root_usd_path = "/".join([s.split(":")[-1] for s in root_node.split("|")])
-    print("root_usd_path: ", root_usd_path)  # r'/rigDefault/ROOT'
-
     SkelDataExtractor(
-        source_path=source_path,
+        source_path=exporter.source_path,
         root_usd_path=root_usd_path,
-        rig_subset_id=rig_subset_id
+        rig_subset_id=rig_subset_id,
+        # override_mesh=exporter.override_mesh
     )
     print("skeleton data done.")
 
+    # Export override mesh
+    OverrideMeshExporter(
+        out_dir, frame_range,
+        override_meshes=exporter.override_mesh,
+        root_usd_path=root_usd_path
+    )
+
     # Export cache_prim.usd
     if rig_subset_id:
-        SkelCachePrimExporter(out_dir, rig_subset_id)
+        SkelCachePrimExporter(out_dir, frame_range, rig_subset_id=rig_subset_id)

@@ -2,8 +2,8 @@ import os
 
 from pxr import Usd, UsdGeom, UsdSkel, Sdf
 
-SKELDATA_SOURCE_NAME = r'skel_source.usda'
-SKELDATA_NAME = r'skel_data.usda'
+SKELDATA_SOURCE_NAME = r'skel_source.usd'
+SKELDATA_NAME = r'skel_data.usd'
 
 
 class RigPrimSourceExporter(object):
@@ -78,6 +78,8 @@ class RigPrimSourceExporter(object):
             stripNamespaces=1, exportVisibility=1, eulerFilter=1, ign=1
         )
 
+        cmds.select(cl=True)
+
 
 class SkelDataExtractor(object):
     """
@@ -92,10 +94,8 @@ class SkelDataExtractor(object):
             'extent', 'material:binding',
             'faceVertexCounts', 'faceVertexIndices', 'doubleSided',
             'normals', 'points',
-            'skel:animationSource',
-            # 'xformOp:translate:pivot', 'xformOpOrder',
-            # 'xformOp:translate', 'xformOp:rotateXYZ', 'xformOp:scale',
-            # 'blendShapeWeights'
+            # 'skel:animationSource',  # commit it to fix joint size
+
             'indices', 'elementType', 'familyName',
             'primvars:SculptFreezeColorTemp', 'primvars:SculptFreezeColorTemp:indices',
             'primvars:SculptMaskColorTemp', 'primvars:SculptMaskColorTemp:indices',
@@ -106,7 +106,9 @@ class SkelDataExtractor(object):
             'xformOp:translate', 'xformOp:rotateXYZ', 'xformOp:scale'
         ]
 
-        self.del_prims = ['Material', 'GeomSubset', 'Scope']  # 'SkelAnimation'
+        self.del_prims = [
+            'Material', 'GeomSubset', 'Scope', 'NurbsCurves'
+        ]  # 'SkelAnimation'
         self.skip_prims = ['BlendShape']
 
         self._export()
@@ -120,13 +122,7 @@ class SkelDataExtractor(object):
 
         _, invalid_group = get_model_reference_group()
 
-        # stage = Usd.Stage.CreateInMemory()
-        # layer = stage.GetRootLayer()
-        # layer.Clear()
-        # layer.Import(self.source_path)
-
         stage = Usd.Stage.Open(self.source_path)
-        # layer = stage.GetRootLayer()
 
         delete_prims = []
         for prim in stage.TraverseAll():

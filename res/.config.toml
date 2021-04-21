@@ -252,3 +252,22 @@ hideFilter = true
 [[families]]
 name = "reveries.pointcache.usd"
 hideFilter = true
+
+[[families]]
+name = "reveries.rig.usd"
+label = "USD (Rig)"
+icon = "list"
+
+[[families]]
+name = "reveries.skeletoncache"
+label = "USD (Skeleton Cache)"
+icon = "list"
+
+[[families]]
+name = "reveries.rig.skeleton"
+hideFilter = true
+
+[[families]]
+name = "reveries.rig.review"
+label = "USD Rig Review"
+icon = "fa5s.hand-paper"

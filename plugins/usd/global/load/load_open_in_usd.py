@@ -38,7 +38,10 @@ class OpenInUSD(PackageLoader, avalon.api.Loader):
         "reveries.ani.ani_prim",
         "reveries.setdress.layer_prim",
         "reveries.setdress.usd",
-        "reveries.layout.usd"
+        "reveries.layout.usd",
+        "reveries.rig.usd",
+        "reveries.skeletoncache",
+        "reveries.rig.review"
     ]
 
     representations = [
@@ -58,7 +61,7 @@ class OpenInUSD(PackageLoader, avalon.api.Loader):
         # Get usd file
         representation = context["representation"]
         entry_path = self._file_path(representation)
-        usd_file = os.path.expandvars(entry_path).replace("\\", "/")
+        usd_file = os.path.expandvars(entry_path).replace("/", "\\")
 
         if not usd_file:
             directory = self.package_path
@@ -67,7 +70,8 @@ class OpenInUSD(PackageLoader, avalon.api.Loader):
                 self.log.info('No usd file found in : {}'.format(directory))
                 return
 
-            usd_file = os.path.join(directory, files[0])
+            usd_file = os.path.join(directory, files[0]).replace("/", "\\")
+
         self._open_usdview(usd_file)
 
     def _open_usdview(self, usd_file):
@@ -86,9 +90,10 @@ class OpenInUSD(PackageLoader, avalon.api.Loader):
 
         cmd = [usdview_bat, usd_file]
         print('open usdview cmd: {}'.format(cmd))
-        subprocess.Popen(
+        popen = subprocess.Popen(
             cmd,
             shell=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE
         )
+        popen.communicate()  # For fix long print lock

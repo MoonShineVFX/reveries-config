@@ -189,8 +189,11 @@ class ExtractLook(pyblish.api.InstancePlugin):
                                           long=True)
 
             # (TODO) Validate only transform nodes in ai set
-            transforms = cmds.ls(cmds.listRelatives(surfaces, parent=True),
-                                 long=True)
+            transforms = cmds.ls(
+                cmds.listRelatives(surfaces, parent=True, path=True),
+                long=True,
+            )
+
             for node in transforms:
                 id = _get_id(node)
 
@@ -200,7 +203,7 @@ class ExtractLook(pyblish.api.InstancePlugin):
                 shape = cmds.listRelatives(node,
                                            shapes=True,
                                            noIntermediate=True,
-                                           fullPath=True) or [None]
+                                           path=True) or [None]
                 shape = shape[0]
                 if shape is None:
                     continue

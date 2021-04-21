@@ -134,6 +134,11 @@ class UnpackLoadedSubset(avalon.api.InventoryAction):
         dep_subset = io.find_one({"_id": dep_version["parent"]})
         dep_representation = io.find_one({"parent": dep_version["_id"],
                                           "name": "TexturePack"})
+
+        if "fileInventory" not in dep_representation["data"]:
+            self.copy_old_textures(container, asset, subset, version)
+            return
+
         # List texture versions
         published = dict()
         template_publish = project["config"]["template"]["publish"]
@@ -189,3 +194,51 @@ class UnpackLoadedSubset(avalon.api.InventoryAction):
                 continue
 
             shutil.copytree(src, dst)
+
+    def copy_old_textures(self, container, asset, subset, version):
+        import os
+        import shutil
+        from maya import cmds, mel
+        from reveries.maya.utils import fix_texture_file_nodes
+
+        files = dict()
+        file_nodes = cmds.ls(cmds.sets(container["objectName"], query=True),
+                             type="file")
+        for node in file_nodes:
+            path = cmds.getAttr(node + ".fileTextureName",
+                                expandEnvironmentVariables=True)
+            if not os.path.isfile(path):
+                continue
+
+            if path not in files:
+                files[path] = list()
+            files[path].append(node)
+
+        # Copy textures and change path
+        root = cmds.workspace(query=True, rootDirectory=True)
+        root += mel.eval('workspace -query -fileRuleEntry "sourceImages"')
+        root += "/_unpacked"
+
+        pattern = "/{asset}/{subset}.v{version:0>3}"
+        subdirs = pattern.format(asset=asset["name"],
+                                 subset=subset["name"],
+                                 version=version["name"])
+        root += subdirs
+
+        if not os.path.isdir(root):
+            os.makedirs(root)
+
+        copied = set()
+        for path, nodes in files.items():
+            src = path
+            fname = os.path.basename(src)
+            dst = os.path.join(root, fname)
+
+            if fname in copied:
+                # ignore same named file
+                pass
+            else:
+                shutil.copy2(src, dst)
+                copied.add(fname)
+
+            fix_texture_file_nodes(nodes, file_path=dst)

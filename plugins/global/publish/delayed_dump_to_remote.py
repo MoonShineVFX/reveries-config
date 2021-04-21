@@ -66,6 +66,7 @@ class DelayedDumpToRemote(pyblish.api.ContextPlugin):
 
         # Dump instances
         dumps = dict()
+        skip_ins = []
         for instance in instances:
 
             extractors = [(key.split(".")[1], value)
@@ -75,7 +76,9 @@ class DelayedDumpToRemote(pyblish.api.ContextPlugin):
             extractors.sort(key=lambda t: t[1].get("order", -1))
 
             if not extractors:
+                skip_ins.append(instance.name)
                 continue
+
             self.log.info("Dumping instance %s .." % instance)
             dump_path, dump = self.instance_dump(instance, extractors)
             dumps[instance.name] = (dump_path, dump)
@@ -122,7 +125,7 @@ class DelayedDumpToRemote(pyblish.api.ContextPlugin):
                         c.id for c in instance.data.get("childInstances", [])
                     ],
                 }
-                for instance in instances
+                for instance in instances if instance.name not in skip_ins
             ],
         }
 

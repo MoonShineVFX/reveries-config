@@ -48,19 +48,19 @@ class CollectSkeletonCacheOutputs(pyblish.api.InstancePlugin):
 
             # Create instance
             created = True
-            instance = context.create_instance(namespace + "." + _post)
-            instance.data.update(backup.data)
+            _instance = context.create_instance(namespace + "." + _post)
+            _instance.data.update(backup.data)
 
-            instance[:] = [root_node]
-            instance.data["subset"] = ".".join(["skeletoncache", namespace, _post])
-            instance.data["startFrame"] = start_frame
-            instance.data["endFrame"] = end_frame
-            instance.data["rig_subset_id"] = rig_subset_id
-            instance.data["root_node"] = root_node
+            _instance[:] = [root_node]
+            _instance.data["subset"] = ".".join(["skeletoncache", namespace, _post])
+            _instance.data["startFrame"] = start_frame
+            _instance.data["endFrame"] = end_frame
+            _instance.data["rig_subset_id"] = rig_subset_id
+            _instance.data["root_node"] = root_node
 
             # Check task
             if task_check(task_name="animating"):
-                instance.data["subsetGroup"] = "Animation"
+                _instance.data["subsetGroup"] = "Animation"
 
         if not created:
             self.log.warning("No skeletoncache instance created.")

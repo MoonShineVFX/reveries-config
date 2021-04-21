@@ -52,6 +52,7 @@ class PointCacheReferenceLoader(ReferenceLoader, avalon.api.Loader):
 
         # (NOTE) Nodes loaded from Alembic did not have verifiers
         utils.update_id_verifiers(nodes)
+        self.ensure_transform_inherited(nodes)
 
         self[:] = nodes
 
@@ -103,3 +104,11 @@ class PointCacheReferenceLoader(ReferenceLoader, avalon.api.Loader):
 
             cmds.setAttr(attr, 1)  # To trigger reference edit
             cmds.setAttr(attr, factor)
+
+    def ensure_transform_inherited(self, nodes):
+        import maya.cmds as cmds
+
+        for transform in cmds.ls(nodes, type="transform"):
+            inherits = cmds.getAttr(transform + ".inheritsTransform")
+            if not inherits:
+                cmds.setAttr(transform + ".inheritsTransform", True)

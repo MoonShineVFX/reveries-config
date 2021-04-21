@@ -1,4 +1,4 @@
-from avalon import io
+
 import pyblish.api
 
 
@@ -67,6 +67,8 @@ class CollectDeformedOutputs(pyblish.api.InstancePlugin):
             if sets:
                 out_sets += sets
                 members.remove(group)
+
+        tensioned_data = self.retrieve_tension_data(instance)
 
         # Collect cacheable nodes
 
@@ -146,6 +148,7 @@ class CollectDeformedOutputs(pyblish.api.InstancePlugin):
                 instance.data["endFrame"] = end_frame
                 instance.data["all_cacheables"] = all_cacheables
 
+                self.find_tension_required(instance, tensioned_data)
                 self.add_families(instance)
 
         if not members:
@@ -179,6 +182,7 @@ class CollectDeformedOutputs(pyblish.api.InstancePlugin):
             instance.data["endFrame"] = end_frame
             instance.data["all_cacheables"] = all_cacheables
 
+            self.find_tension_required(instance, tensioned_data)
             self.add_families(instance)
 
     def outset_respected_expand(self, members):
@@ -269,3 +273,41 @@ class CollectDeformedOutputs(pyblish.api.InstancePlugin):
                     instance.data["exportPointCacheUSD"] = True
 
         instance.data["families"] = families
+
+    def retrieve_tension_data(self, instance):
+        from avalon import io
+
+        project = instance.context.data["projectDoc"]
+        asset = io.find_one({"type": "asset",
+                             "name": instance.data["asset"],
+                             "parent": project["_id"]})
+        if not asset:
+            return None
+
+        subset = io.find_one(
+            {"type": "subset", "parent": asset["_id"], "name": "lookDefault"},
+            projection={"data.requireTensionMap": True}
+        )
+        if not subset:
+            return None
+
+        return subset["data"].get("requireTensionMap")
+
+    def find_tension_required(self, instance, tensioned_data):
+        from maya import cmds
+
+        if not tensioned_data:
+            return
+
+        wildcards = []
+        for path in tensioned_data:
+            w = "|*:".join([p.rsplit(":", 1)[-1] for p in path.split("|")])
+            wildcards.append("*:" + w)
+
+        tension_required = []
+        cacheables = instance.data["outCache"]
+        for node in cmds.ls(wildcards, long=True):
+            if node in cacheables:
+                tension_required.append(node)
+
+        instance.data["requireTensionMap"] = tension_required

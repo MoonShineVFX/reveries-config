@@ -49,17 +49,14 @@ class AbcLoader(HoudiniBaseLoader, api.Loader):
                           # Enable "Add Filename Attribute" to read AvalonID
                           "addfile": True})
 
-        id_read = container.createNode("avalonidRead")
-        id_read.setInput(0, alembic)
-
         null = container.createNode("null", node_name="OUT".format(name))
-        null.setInput(0, id_read)
+        null.setInput(0, alembic)
 
         # Set display on last node
         null.setDisplayFlag(True)
 
         # Set new position for unpack node else it gets cluttered
-        nodes = [container, alembic, id_read, null]
+        nodes = [container, alembic, null]
         for nr, node in enumerate(nodes):
             node.setPosition([0, (0 - nr)])
 

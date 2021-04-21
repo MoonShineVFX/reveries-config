@@ -15,6 +15,10 @@ class DelayedExtractionRunner(pyblish.api.InstancePlugin):
     targets = ["localhost"]
 
     def process(self, instance):
+
+        if instance.data.get("to_deadline", False):
+            return
+
         context = instance.context
         # Skip if any error occurred
         if not all(result["success"] for result in context.data["results"]):
