@@ -1003,7 +1003,11 @@ def get_output_paths(output_dir, renderer, layer, camera):
 
     elif renderer == "arnold":
         import reveries.maya.arnold.utils as utils_
-        aov_names = utils_.get_arnold_aov_names(layer)
+        merge_aov = cmds.getAttr("defaultArnoldDriver.mergeAOVs")
+        if merge_aov:
+            aov_names = [""]
+        else:
+            aov_names = utils_.get_arnold_aov_names(layer)
 
     else:
         aov_names = [""]
