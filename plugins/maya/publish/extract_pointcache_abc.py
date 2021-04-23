@@ -168,9 +168,10 @@ class ExtractPointCacheABC(pyblish.api.InstancePlugin):
             from itertools import izip
             import maya.api.OpenMaya as om2
 
+            RGBA = om2.MFnMesh.kRGBA
+
             fn_colored = []
             vert_ids = []
-            color_set = []
             bool_attrs = []
 
             for node in transforms:
@@ -206,12 +207,6 @@ class ExtractPointCacheABC(pyblish.api.InstancePlugin):
                     # not likely to happen
                     continue
 
-                # create colorSet "restPRef" on original shape
-                cmds.polyColorSet(original,
-                                  create=True,
-                                  clamped=False,
-                                  representation="RGBA",
-                                  colorSet="restPRef")
                 # get point position in object space (local)
                 point_pos = []
                 vertIter = om2.MItMeshVertex(mobj_origin)
@@ -236,13 +231,15 @@ class ExtractPointCacheABC(pyblish.api.InstancePlugin):
                 # write color to renderable shape
                 vert_ids.append(vertIds)
                 if meshFn_deform is not None:
+                    meshFn_deform.createColorSet("restPRef", False, RGBA)
+                    meshFn_deform.setCurrentColorSetName("restPRef")
                     meshFn_deform.setVertexColors(vertColors, vertIds)
                     fn_colored.append(meshFn_deform)
-                    color_set.append((original, deformed))
                 else:
+                    meshFn_origin.createColorSet("restPRef", False, RGBA)
+                    meshFn_origin.setCurrentColorSetName("restPRef")
                     meshFn_origin.setVertexColors(vertColors, vertIds)
                     fn_colored.append(meshFn_origin)
-                    color_set.append((original,))
 
                 # ensure color exported and suppressed
                 exp_node = deformed if deformed else original
@@ -262,17 +259,11 @@ class ExtractPointCacheABC(pyblish.api.InstancePlugin):
 
             finally:
                 # teardown
-                group = izip(fn_colored, vert_ids, color_set, bool_attrs)
+                group = izip(fn_colored, vert_ids, bool_attrs)
 
-                for meshFn, vertIds, nodes, attrs in group:
+                for meshFn, vertIds, attrs in group:
                     meshFn.removeVertexColors(vertIds)
-                    for node in nodes:
-                        try:
-                            cmds.polyColorSet(node,
-                                              delete=True,
-                                              colorSet="restPRef")
-                        except RuntimeError:
-                            pass
+                    meshFn.deleteColorSet("restPRef")
                     for attr, value in attrs:
                         cmds.setAttr(attr, value)
 
