@@ -43,6 +43,8 @@ class ExtractPointCacheABC(pyblish.api.InstancePlugin):
         root = instance.data["outCache"]
 
         if tension:
+            self.log.info("TensionMap will be exported.")
+
             instance.data["repr.Alembic._delayRun"] = {
                 "func": self.export_alembic_with_tension,
                 "args": [

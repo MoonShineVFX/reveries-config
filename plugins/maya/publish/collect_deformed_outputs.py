@@ -321,7 +321,7 @@ class CollectDeformedOutputs(pyblish.api.InstancePlugin):
 
         tension_required = []
         cacheables = instance.data["outCache"]
-        for node in cmds.ls(wildcards, long=True):
+        for node in cmds.ls(wildcards, long=True, recursive=True):
             if node in cacheables:
                 tension_required.append(node)
 
