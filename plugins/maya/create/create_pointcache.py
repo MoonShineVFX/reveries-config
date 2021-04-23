@@ -34,6 +34,10 @@ class PointCacheCreator(avalon.maya.Creator):
         # Apply Euler filter to rotations for Alembic
         self.data["eulerFilter"] = True
 
+        # for nodes that are not in any OutSet
+        self.data["tryTension"] = False
+        self.data["tryRestPos"] = False
+
         # Check usd pipeline
         project = io.find_one({"name": api.Session["AVALON_PROJECT"],
                                "type": "project"})

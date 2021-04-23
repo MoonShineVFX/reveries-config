@@ -50,6 +50,7 @@ class CollectLook(pyblish.api.InstancePlugin):
                 cmds.ls(type=node_type)
             )
             if tension_plugs:
+                self.log.info("Tension colorSet request found.")
                 tensioned_shadings += cmds.ls(
                     cmds.listHistory(
                         [p + attr_out for p in tension_plugs],
@@ -60,10 +61,11 @@ class CollectLook(pyblish.api.InstancePlugin):
                     type="shadingEngine"
                 )
         if tensioned_shadings:
+            self.log.info("Collecting tensionMap required meshes.")
             tensioned_meshes = cmds.ls(
                 cmds.sets(tensioned_shadings, query=True, nodesOnly=True),
                 visible=True,
-                intermediateObjects=True,
+                intermediateObjects=False,
             )
             instance.data["requireTensionMap"] = cmds.listRelatives(
                 tensioned_meshes, parent=True, path=True) or []

@@ -293,10 +293,6 @@ class IntegrateAvalonSubset(pyblish.api.InstancePlugin):
             if instance.data.get("model_subset_id", None):
                 subset["data"]["model_subset_id"] = \
                     instance.data["model_subset_id"]
-            # For lookdev TensionMap
-            if instance.data.get("requireTensionMap", None):
-                subset["data"]["requireTensionMap"] = \
-                    instance.data["requireTensionMap"]
 
         return subset
 
@@ -395,7 +391,8 @@ class IntegrateAvalonSubset(pyblish.api.InstancePlugin):
             "hasUnversionedSurfaces",
             "deadlineJobId",
             # "model_subset_data",  # For rig publish
-            "shape_merge"  # For model/lookdev publish
+            "shape_merge",  # For model/lookdev publish
+            "requireTensionMap",
         ]
         for key in optionals:
             if key in instance.data:

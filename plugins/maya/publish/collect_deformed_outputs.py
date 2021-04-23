@@ -45,6 +45,7 @@ class CollectDeformedOutputs(pyblish.api.InstancePlugin):
             end_frame = get({"maxTime": True})
 
         members = instance[:]
+        asset_docs = dict()
         out_sets = list()
 
         # Find OutSet from *Subset Group nodes*
@@ -65,10 +66,12 @@ class CollectDeformedOutputs(pyblish.api.InstancePlugin):
                 if s.endswith("OutSet")
             ]
             if sets:
-                out_sets += sets
+                asset_id = cmds.getAttr(container + ".assetId")
+                out_sets += [(asset_id, s) for s in sets]
                 members.remove(group)
 
-        tensioned_data = self.retrieve_tension_data(instance)
+                if asset_id not in asset_docs:
+                    asset_docs[asset_id] = self.get_asset_doc(asset_id)
 
         # Collect cacheable nodes
 
@@ -81,7 +84,7 @@ class CollectDeformedOutputs(pyblish.api.InstancePlugin):
             out_cache = dict()
             subset = backup.data["subset"][len("pointcache"):]
 
-            for out_set in out_sets:
+            for asset_id, out_set in out_sets:
 
                 variant = out_set.rsplit(":", 1)[-1][:-len("OutSet")]
                 if variant:
@@ -102,7 +105,7 @@ class CollectDeformedOutputs(pyblish.api.InstancePlugin):
                 # Plus locator
                 cacheables += self.pick_locators(set_member)
 
-                out_cache[(namespace, name)] = (
+                out_cache[(asset_id, namespace, name)] = (
                     has_hidden, cacheables, all_cacheables
                 )
 
@@ -113,7 +116,7 @@ class CollectDeformedOutputs(pyblish.api.InstancePlugin):
             # Re-Create instances
 
             for k, (has_hidden, cacheables, all_cacheables) in out_cache.items():
-                namespace, name = k
+                asset_id, namespace, name = k
 
                 if not cacheables:
                     self.log.debug("Skip empty OutSet %s in %s"
@@ -148,7 +151,9 @@ class CollectDeformedOutputs(pyblish.api.InstancePlugin):
                 instance.data["endFrame"] = end_frame
                 instance.data["all_cacheables"] = all_cacheables
 
-                self.find_tension_required(instance, tensioned_data)
+                asset_doc = asset_docs[asset_id]
+                self.find_tension_required(instance, asset_doc)
+                self.is_rest_position_required(instance, asset_doc)
                 self.add_families(instance)
 
         if not members:
@@ -182,7 +187,11 @@ class CollectDeformedOutputs(pyblish.api.InstancePlugin):
             instance.data["endFrame"] = end_frame
             instance.data["all_cacheables"] = all_cacheables
 
-            self.find_tension_required(instance, tensioned_data)
+            if instance.data.get("tryTension"):
+                instance.data["requireTensionMap"] = cacheables
+            if instance.data.get("tryRestPos"):
+                instance.data["requireRestPos"] = True
+
             self.add_families(instance)
 
     def outset_respected_expand(self, members):
@@ -274,30 +283,36 @@ class CollectDeformedOutputs(pyblish.api.InstancePlugin):
 
         instance.data["families"] = families
 
-    def retrieve_tension_data(self, instance):
+    def retrieve_tension_data(self, asset):
         from avalon import io
 
-        project = instance.context.data["projectDoc"]
-        asset = io.find_one({"type": "asset",
-                             "name": instance.data["asset"],
-                             "parent": project["_id"]})
         if not asset:
             return None
 
         subset = io.find_one(
             {"type": "subset", "parent": asset["_id"], "name": "lookDefault"},
-            projection={"data.requireTensionMap": True}
         )
         if not subset:
             return None
 
-        return subset["data"].get("requireTensionMap")
+        version = io.find_one(
+            {"type": "version", "parent": subset["_id"]},
+            sort=[("name", -1)],
+            projection={"data.requireTensionMap": True}
+        )
+        if not version:
+            return None
 
-    def find_tension_required(self, instance, tensioned_data):
+        return version["data"].get("requireTensionMap")
+
+    def find_tension_required(self, instance, asset_doc):
         from maya import cmds
 
+        tensioned_data = self.retrieve_tension_data(asset_doc)
         if not tensioned_data:
             return
+
+        self.log.info("TensionMap required: %s" % instance.data["subset"])
 
         wildcards = []
         for path in tensioned_data:
@@ -311,3 +326,21 @@ class CollectDeformedOutputs(pyblish.api.InstancePlugin):
                 tension_required.append(node)
 
         instance.data["requireTensionMap"] = tension_required
+
+    def is_rest_position_required(self, instance, asset_doc):
+        value_path = "taskOptions.rigging.outputRestPosition.value"
+        value = asset_doc["data"]
+        for entry in value_path.split("."):
+            value = value.get(entry, {})
+
+        require = value is True
+
+        if require:
+            self.log.info("RestPRef required: %s" % instance.data["subset"])
+            instance.data["requireRestPos"] = require
+
+    def get_asset_doc(self, asset_id):
+        from avalon import io
+        asset_doc = io.find_one({"type": "asset",
+                                 "_id": io.ObjectId(asset_id)})
+        return asset_doc

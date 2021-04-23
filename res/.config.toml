@@ -19,6 +19,11 @@ label = "Auto update model"
 default = false
 help = "Auto update model to latest version after model publish."
 
+[tasks.options.outputRestPosition]
+label = "Export point rest position"
+default = false
+help = "Export rest position colorset when publishing pointcache."
+
 [[tasks]]
 name = "lookdev"
 
